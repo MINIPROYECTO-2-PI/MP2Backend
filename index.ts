@@ -3,6 +3,7 @@ import type { Request, Response } from 'express'
 import cors from 'cors'
 import { PORT } from './config.js'
 import { User } from './user-class.js'
+import { Room } from './room-class.js'
 import db from './firebase.js'
 import { getAvatar } from './initials.js'
 import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
@@ -178,6 +179,133 @@ app.post('/logout', (_req: Request, res: Response) => {
 
 app.get('/protected', (_req: Request, res: Response) => {
   res.json({ message: 'Ruta protegida' })
+})
+
+// ═══════════════════════════════════════════════
+//  US-04 — Perfil de Usuario: Ver y Editar
+// ═══════════════════════════════════════════════
+
+app.get('/profile/:uid', async (req: Request, res: Response) => {
+  try {
+    const uid = req.params.uid as string
+    const profile = await User.getProfile(uid)
+
+    res.json({
+      message: 'Perfil obtenido exitosamente',
+      profile: {
+        uid: profile.uid,
+        username: profile.username,
+        email: profile.email,
+        name: profile.name,
+        surname: profile.surname,
+        avatar: profile.avatar,
+        provider: profile.provider,
+        createdAt: profile.createdAt
+      }
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Error desconocido'
+    res.status(404).json({ error: message })
+  }
+})
+
+app.put('/profile/:uid', async (req: Request, res: Response) => {
+  try {
+    const uid = req.params.uid as string
+    const { name, surname, username, email, avatar } = req.body as {
+      name?: string
+      surname?: string
+      username?: string
+      email?: string
+      avatar?: string
+    }
+
+    const updatedProfile = await User.updateProfile(uid, {
+      name,
+      surname,
+      username,
+      email,
+      avatar
+    })
+
+    res.json({
+      message: 'Perfil actualizado exitosamente',
+      profile: {
+        uid: updatedProfile.uid,
+        username: updatedProfile.username,
+        email: updatedProfile.email,
+        name: updatedProfile.name,
+        surname: updatedProfile.surname,
+        avatar: updatedProfile.avatar
+      }
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Error desconocido'
+    const status = (message.includes('ya está en uso') || message.includes('al menos')) ? 409 : 400
+    res.status(status).json({ error: message })
+  }
+})
+
+// ═══════════════════════════════════════════════
+//  US-05 — Eliminar Cuenta de Usuario
+// ═══════════════════════════════════════════════
+
+app.delete('/profile/:uid', async (req: Request, res: Response) => {
+  try {
+    const uid = req.params.uid as string
+
+    await User.deleteAccount(uid)
+
+    res.json({
+      message: 'Cuenta eliminada exitosamente'
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Error desconocido'
+    res.status(400).json({ error: message })
+  }
+})
+
+// ═══════════════════════════════════════════════
+//  US-06 — Crear y Visualizar Salas
+// ═══════════════════════════════════════════════
+
+app.post('/rooms', async (req: Request, res: Response) => {
+  try {
+    const { name, hostUid, hostUsername } = req.body as {
+      name?: string
+      hostUid?: string
+      hostUsername?: string
+    }
+
+    if (!name || !hostUid || !hostUsername) {
+      return res.status(400).json({ error: 'Nombre de sala, UID y username del anfitrión son requeridos' })
+    }
+
+    const room = await Room.create({ name, hostUid, hostUsername })
+
+    res.json({
+      message: 'Sala creada exitosamente',
+      room
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Error desconocido'
+    res.status(400).json({ error: message })
+  }
+})
+
+app.get('/rooms/:uid', async (req: Request, res: Response) => {
+  try {
+    const uid = req.params.uid as string
+    const rooms = await Room.getByHost(uid)
+
+    res.json({
+      message: 'Salas obtenidas exitosamente',
+      rooms
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Error desconocido'
+    res.status(500).json({ error: message })
+  }
 })
 
 app.listen(PORT, () => {

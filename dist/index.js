@@ -7,6 +7,7 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const config_js_1 = require("./config.js");
 const user_class_js_1 = require("./user-class.js");
+const room_class_js_1 = require("./room-class.js");
 const firebase_js_1 = __importDefault(require("./firebase.js"));
 const initials_js_1 = require("./initials.js");
 const firestore_1 = require("firebase/firestore");
@@ -142,6 +143,111 @@ app.post('/logout', (_req, res) => {
 });
 app.get('/protected', (_req, res) => {
     res.json({ message: 'Ruta protegida' });
+});
+// ═══════════════════════════════════════════════
+//  US-04 — Perfil de Usuario: Ver y Editar
+// ═══════════════════════════════════════════════
+app.get('/profile/:uid', async (req, res) => {
+    try {
+        const uid = req.params.uid;
+        const profile = await user_class_js_1.User.getProfile(uid);
+        res.json({
+            message: 'Perfil obtenido exitosamente',
+            profile: {
+                uid: profile.uid,
+                username: profile.username,
+                email: profile.email,
+                name: profile.name,
+                surname: profile.surname,
+                avatar: profile.avatar,
+                provider: profile.provider,
+                createdAt: profile.createdAt
+            }
+        });
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : 'Error desconocido';
+        res.status(404).json({ error: message });
+    }
+});
+app.put('/profile/:uid', async (req, res) => {
+    try {
+        const uid = req.params.uid;
+        const { name, surname, username, email, avatar } = req.body;
+        const updatedProfile = await user_class_js_1.User.updateProfile(uid, {
+            name,
+            surname,
+            username,
+            email,
+            avatar
+        });
+        res.json({
+            message: 'Perfil actualizado exitosamente',
+            profile: {
+                uid: updatedProfile.uid,
+                username: updatedProfile.username,
+                email: updatedProfile.email,
+                name: updatedProfile.name,
+                surname: updatedProfile.surname,
+                avatar: updatedProfile.avatar
+            }
+        });
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : 'Error desconocido';
+        const status = (message.includes('ya está en uso') || message.includes('al menos')) ? 409 : 400;
+        res.status(status).json({ error: message });
+    }
+});
+// ═══════════════════════════════════════════════
+//  US-05 — Eliminar Cuenta de Usuario
+// ═══════════════════════════════════════════════
+app.delete('/profile/:uid', async (req, res) => {
+    try {
+        const uid = req.params.uid;
+        await user_class_js_1.User.deleteAccount(uid);
+        res.json({
+            message: 'Cuenta eliminada exitosamente'
+        });
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : 'Error desconocido';
+        res.status(400).json({ error: message });
+    }
+});
+// ═══════════════════════════════════════════════
+//  US-06 — Crear y Visualizar Salas
+// ═══════════════════════════════════════════════
+app.post('/rooms', async (req, res) => {
+    try {
+        const { name, hostUid, hostUsername } = req.body;
+        if (!name || !hostUid || !hostUsername) {
+            return res.status(400).json({ error: 'Nombre de sala, UID y username del anfitrión son requeridos' });
+        }
+        const room = await room_class_js_1.Room.create({ name, hostUid, hostUsername });
+        res.json({
+            message: 'Sala creada exitosamente',
+            room
+        });
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : 'Error desconocido';
+        res.status(400).json({ error: message });
+    }
+});
+app.get('/rooms/:uid', async (req, res) => {
+    try {
+        const uid = req.params.uid;
+        const rooms = await room_class_js_1.Room.getByHost(uid);
+        res.json({
+            message: 'Salas obtenidas exitosamente',
+            rooms
+        });
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : 'Error desconocido';
+        res.status(500).json({ error: message });
+    }
 });
 app.listen(config_js_1.PORT, () => {
     console.log(`Servidor corriendo en http://localhost:${config_js_1.PORT}`);
