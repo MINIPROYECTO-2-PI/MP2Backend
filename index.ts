@@ -6,7 +6,14 @@ import { User } from './user-class.js'
 import { Room } from './room-class.js'
 import db from './firebase.js'
 import { getAvatar } from './initials.js'
-import { collection, addDoc, getDocs, query, where } from 'firebase/firestore'
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  updateDoc
+} from 'firebase/firestore'
 import type { DocumentData, QuerySnapshot } from 'firebase/firestore'
 
 const app = express()
@@ -20,10 +27,15 @@ app.get('/', (_req: Request, res: Response) => {
 
 app.post('/login', async (req: Request, res: Response) => {
   try {
-    const { username, password } = req.body as { username?: string; password?: string }
+    const { username, password } = req.body as {
+      username?: string
+      password?: string
+    }
 
     if (!username || !password) {
-      return res.status(400).json({ error: 'Usuario/correo y contraseña son requeridos' })
+      return res
+        .status(400)
+        .json({ error: 'Usuario/correo y contraseña son requeridos' })
     }
 
     const user = await User.login({ username, password })
@@ -41,6 +53,45 @@ app.post('/login', async (req: Request, res: Response) => {
   }
 })
 
+app.post('/change-room-name', async (req: Request, res: Response) => {
+  try {
+    const { name, newName, hostUid, roomId } = req.body as {
+      name?: string
+      newName?: string
+      hostUid?: string
+      roomId?: string
+    }
+    if (!name || !newName || !hostUid || !roomId) {
+      return res.status(400).json({
+        error: 'Por favor escribe un nombre de sala y un nuevo nombre'
+      })
+    }
+
+    const q = query(
+      collection(db, 'rooms'),
+      where('name', '==', name),
+      where('hostUid', '==', hostUid),
+      where('roomId', '==', roomId)
+    )
+
+    const snapshot: QuerySnapshot<DocumentData> = await getDocs(q)
+
+    if (!snapshot.empty) {
+      const room = snapshot.docs[0]
+
+      await updateDoc(room.ref, { name: newName })
+
+      res.json({
+        message: 'Nombre de sala actualizado exitosamente'
+      })
+    } else {
+      return res.status(404).json({ error: 'Sala no encontrada' })
+    }
+  } catch (error) {
+    console.log(error)
+  }
+})
+
 app.post('/register', async (req: Request, res: Response) => {
   try {
     const { username, password, email, name, surname } = req.body as {
@@ -52,9 +103,7 @@ app.post('/register', async (req: Request, res: Response) => {
     }
 
     if (!username || !password || !email || !name || !surname) {
-      return res
-        .status(400)
-        .json({ error: 'Todos los campos son requeridos' })
+      return res.status(400).json({ error: 'Todos los campos son requeridos' })
     }
 
     const firebaseUser = await User.create({
@@ -99,7 +148,8 @@ app.post('/google-login', async (req: Request, res: Response) => {
     if (snapshot.empty) {
       return res.json({
         isNewUser: true,
-        message: 'Por favor, elige tu nombre de usuario único para completar tu perfil',
+        message:
+          'Por favor, elige tu nombre de usuario único para completar tu perfil',
         user: { uid, email, displayName, photoURL }
       })
     }
@@ -122,6 +172,11 @@ app.post('/google-login', async (req: Request, res: Response) => {
   }
 })
 
+app.get('/test', (_req, res) => {
+  console.log('ENTRO A TEST')
+  res.json({ ok: true })
+})
+
 app.post('/google-register-complete', async (req: Request, res: Response) => {
   try {
     const { uid, email, displayName, photoURL, username } = req.body as {
@@ -133,11 +188,15 @@ app.post('/google-register-complete', async (req: Request, res: Response) => {
     }
 
     if (!uid || !email || !username) {
-      return res.status(400).json({ error: 'Datos incompletos para completar el perfil' })
+      return res
+        .status(400)
+        .json({ error: 'Datos incompletos para completar el perfil' })
     }
 
     if (username.length < 3) {
-      return res.status(400).json({ error: 'El nombre de usuario debe tener al menos 3 caracteres' })
+      return res.status(400).json({
+        error: 'El nombre de usuario debe tener al menos 3 caracteres'
+      })
     }
 
     const ref = collection(db, 'users')
@@ -145,7 +204,9 @@ app.post('/google-register-complete', async (req: Request, res: Response) => {
     const snapshot: QuerySnapshot<DocumentData> = await getDocs(q)
 
     if (!snapshot.empty) {
-      return res.status(400).json({ error: 'El nombre de usuario ya está en uso' })
+      return res
+        .status(400)
+        .json({ error: 'El nombre de usuario ya está en uso' })
     }
 
     const nameParts = (displayName || '').split(' ')
@@ -241,7 +302,10 @@ app.put('/profile/:uid', async (req: Request, res: Response) => {
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Error desconocido'
-    const status = (message.includes('ya está en uso') || message.includes('al menos')) ? 409 : 400
+    const status =
+      message.includes('ya está en uso') || message.includes('al menos')
+        ? 409
+        : 400
     res.status(status).json({ error: message })
   }
 })
@@ -278,7 +342,9 @@ app.post('/rooms', async (req: Request, res: Response) => {
     }
 
     if (!name || !hostUid || !hostUsername) {
-      return res.status(400).json({ error: 'Nombre de sala, UID y username del anfitrión son requeridos' })
+      return res.status(400).json({
+        error: 'Nombre de sala, UID y username del anfitrión son requeridos'
+      })
     }
 
     const room = await Room.create({ name, hostUid, hostUsername })
@@ -292,6 +358,8 @@ app.post('/rooms', async (req: Request, res: Response) => {
     res.status(400).json({ error: message })
   }
 })
+
+
 
 app.get('/rooms/:uid', async (req: Request, res: Response) => {
   try {
@@ -307,7 +375,10 @@ app.get('/rooms/:uid', async (req: Request, res: Response) => {
     res.status(500).json({ error: message })
   }
 })
+app.get('/health', (_req, res) => {
+  res.sendStatus(200)
+})
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`)
 })
